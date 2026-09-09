@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Chennai Flood Nav — Waze for Chennai Rains</title>
+  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#070B19">
+  <link rel="manifest" href="/manifest.json">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="mode-fullscreen">
+
+  <div class="simulator-wrapper" id="simulatorWrapper">
+    <div class="phone-frame" id="phoneFrame">
+      
+      <!-- Dynamic Island for Phone Frame Preview -->
+      <div class="phone-notch">
+        <div class="dynamic-island">
+          <span class="island-dot"></span>
+          <span class="island-text"><i class="fa-solid fa-satellite-dish"></i> GPS Tracking Active</span>
+        </div>
+      </div>
+
+      <div class="app-viewport">
+        
+        <!-- 1. FULL-SCREEN MAP -->
+        <div id="leafletMap" class="full-map"></div>
+
+        <!-- 2. TOP FLOATING APP BAR & SEARCH -->
+        <header class="floating-app-header">
+          
+          <!-- Top Capsule -->
+          <div class="header-capsule">
+            <div class="app-brand">
+              <span class="app-logo"><i class="fa-solid fa-compass"></i></span>
+              <div class="brand-text">
+                <span class="brand-name">ChennaiNav</span>
+                <span class="brand-tag">Waze for Rains</span>
+              </div>
+            </div>
+
+            <!-- Vehicle Clearance Selector Capsule -->
+            <div class="vehicle-capsule" id="vehicleCapsule">
+              <button class="v-pill active" data-v="two_wheeler" title="2-Wheeler (Safe < 4 in)">
+                <span class="v-emoji">🏍️</span>
+                <span class="v-label">Bike</span>
+              </button>
+              <button class="v-pill" data-v="sedan_hatchback" title="Car (Safe < 7 in)">
+                <span class="v-emoji">🚗</span>
+                <span class="v-label">Car</span>
+              </button>
+              <button class="v-pill" data-v="suv" title="SUV (Safe < 14 in)">
+                <span class="v-emoji">🚙</span>
+                <span class="v-label">SUV</span>
+              </button>
+              <button class="v-pill" data-v="bus_heavy" title="Bus (Safe < 24 in)">
+                <span class="v-emoji">🚌</span>
+                <span class="v-label">Bus</span>
+              </button>
+            </div>
+
+            <!-- Desktop View Mode Toggle -->
+            <button class="btn-view-toggle" id="btnToggleViewMode" title="Toggle Phone / Full Screen View">
+              <i class="fa-solid fa-mobile-screen"></i>
+            </button>
+          </div>
+
+          <!-- Real-Time Weather & Flood Condition Pill -->
+          <div class="weather-pill" id="weatherPill" title="Tap to view live Chennai rainfall & switch weather mode">
+            <div class="weather-pill-content">
+              <span class="weather-pill-icon" id="weatherIcon">☀️</span>
+              <div class="weather-pill-text-wrap">
+                <span class="weather-pill-title" id="weatherText">Chennai Weather: Dry / Clear (0.0mm rain)</span>
+                <span class="weather-pill-sub" id="weatherSub">All subways dry &amp; clear • Normal city transit</span>
+              </div>
+            </div>
+            <button class="btn-weather-mode" id="btnOpenWeatherModal" title="Weather Engine Settings">
+              <i class="fa-solid fa-cloud-sun"></i>
+            </button>
+          </div>
+
+          <!-- Discreet Clearance Banner -->
+          <div class="vehicle-banner-pill" id="vehicleBanner">
+            <i class="fa-solid fa-triangle-exclamation text-amber"></i>
+            <span id="vehicleBannerText">2-Wheeler Mode: 6 subways submerged. Routes strictly avoid &gt;4" water.</span>
+          </div>
+
+          <!-- Search & Destination Selector Card -->
+          <div class="quick-search-card" id="quickSearchCard">
+            
+            <!-- Origin & Destination Row -->
+            <div class="search-inputs-grid">
+              
+              <!-- Origin (Current GPS Location by default) -->
+              <div class="search-input-pill" id="originSelectorPill">
+                <div class="point-icon point-a"><i class="fa-solid fa-location-crosshairs"></i></div>
+                <div class="point-input-box">
+                  <span class="point-sub">Start / Origin</span>
+                  <input type="text" id="inputOriginText" value="Live GPS Location" placeholder="Type or use GPS...">
+                  <input type="hidden" id="originLat" value="12.9815">
+                  <input type="hidden" id="originLng" value="80.2212">
+                </div>
+                <button class="btn-gps-loc" id="btnUseLiveGps" title="Acquire GPS Location">
+                  <i class="fa-solid fa-crosshairs"></i>
+                </button>
+              </div>
+
+              <!-- Destination Selector (Tap to open autocomplete or pick on map) -->
+              <div class="search-input-pill" id="destSelectorPill">
+                <div class="point-icon point-b"><i class="fa-solid fa-flag-checkered"></i></div>
+                <div class="point-input-box" id="destBoxTrigger">
+                  <span class="point-sub">Where to? (Destination)</span>
+                  <input type="text" id="inputDestText" value="T. Nagar (Panagal Park)" placeholder="Search destination in Chennai...">
+                  <input type="hidden" id="destLat" value="13.0416">
+                  <input type="hidden" id="destLng" value="80.2312">
+                </div>
+                <button class="btn-map-pick" id="btnPickOnMap" title="Tap map to set pin">
+                  <i class="fa-solid fa-map-pin"></i>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Horizontal Commuter Presets Strip -->
+            <div class="presets-scroll-bar" id="presetsScrollBar">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+        </header>
+
+        <!-- 3. REAL-TIME PROXIMITY HAZARD ALERT (Appears when near submerged subways/work) -->
+        <div class="proximity-hazard-banner" id="proximityBanner" style="display: none;">
+          <div class="prox-icon-box">
+            <i class="fa-solid fa-triangle-exclamation pulse-danger"></i>
+          </div>
+          <div class="prox-text-box">
+            <div class="prox-title" id="proxTitle">⚠️ HAZARD PROXIMITY ALERT</div>
+            <div class="prox-desc" id="proxDesc">Rangarajapuram Subway is 380m ahead (26" submerged). Rerouting to elevated flyover!</div>
+          </div>
+          <button class="btn-prox-dismiss" id="btnDismissProx">&times;</button>
+        </div>
+
+        <!-- 4. TURN-BY-TURN HUD (WAZE DRIVE MODE) -->
+        <div class="navigation-hud" id="navigationHud" style="display: none;">
+          <div class="hud-top-card">
+            <div class="hud-maneuver-icon">
+              <i class="fa-solid fa-arrow-turn-up text-emerald"></i>
+            </div>
+            <div class="hud-direction-text">
+              <div class="hud-distance" id="hudManeuverDistance">In 700 meters</div>
+              <div class="hud-instruction" id="hudManeuverInstruction">
+                Merge onto Anna Salai Elevated Flyover
+              </div>
+              <div class="hud-safety-note" id="hudSafetyNote">
+                🛡️ Bypasses submerged Rangarajapuram subway (26" water)
+              </div>
+            </div>
+          </div>
+
+          <div class="hud-bottom-bar">
+            <div class="hud-telemetry">
+              <div class="hud-metric">
+                <span class="metric-big" id="hudEta">24</span>
+                <span class="metric-unit">min</span>
+              </div>
+              <div class="hud-divider"></div>
+              <div class="hud-metric">
+                <span class="metric-big" id="hudRemainingKm">11.2</span>
+                <span class="metric-unit">km</span>
+              </div>
+              <div class="hud-divider"></div>
+              <div class="hud-metric">
+                <span class="metric-badge-safe">🛡️ 100% ELEVATED</span>
+              </div>
+            </div>
+
+            <button class="btn-end-nav" id="btnEndNav" title="Exit Navigation">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 5. FLOATING ACTION BUTTONS (Right Margin) -->
+        <div class="floating-fabs">
+          <button class="fab fab-sos" id="btnFabSos" title="Emergency SOS (1913)">
+            <i class="fa-solid fa-phone-volume"></i>
+            <span class="fab-label">SOS</span>
+          </button>
+          
+          <button class="fab fab-work" id="btnFabWork" title="Report Work Goin On">
+            <i class="fa-solid fa-person-digging"></i>
+            <span class="fab-label">Work</span>
+          </button>
+
+          <button class="fab fab-report" id="btnFabReport" title="Flag Flood Depth">
+            <i class="fa-solid fa-plus"></i>
+            <span class="fab-label">Flood</span>
+          </button>
+
+          <button class="fab fab-locate" id="btnFabLocate" title="Center on My GPS Location">
+            <i class="fa-solid fa-location-crosshairs"></i>
+          </button>
+        </div>
+
+        <!-- 6. SWIPEABLE BOTTOM SHEET -->
+        <div class="bottom-sheet" id="bottomSheet">
+          
+          <!-- Drag Handle -->
+          <div class="sheet-drag-handle" id="sheetDragHandle">
+            <span class="handle-bar"></span>
+          </div>
+
+          <!-- Peek Header -->
+          <div class="sheet-peek-bar" id="sheetPeekBar">
+            <div class="peek-left">
+              <div class="peek-route-title" id="peekRouteTitle">Live GPS ➔ T. Nagar</div>
+              <div class="peek-metrics" id="peekMetrics">
+                <span class="text-emerald font-bold">11.2 km • 24 mins</span>
+                <span class="peek-dot">•</span>
+                <span class="badge-pill-safe">🛡️ Monsoon Safe</span>
+              </div>
+            </div>
+            <button class="btn-start-drive" id="btnStartDrive">
+              <i class="fa-solid fa-location-arrow"></i> Start Drive
+            </button>
+          </div>
+
+          <!-- Sheet Navigation Tabs -->
+          <div class="sheet-tabs">
+            <button class="sheet-tab active" data-target="tabRoute">
+              <i class="fa-solid fa-route"></i> Route
+            </button>
+            <button class="sheet-tab" data-target="tabSubways">
+              <i class="fa-solid fa-train-subway"></i> Subways (<span id="subwaysClosedCount">0</span>)
+            </button>
+            <button class="sheet-tab" data-target="tabWorks">
+              <i class="fa-solid fa-person-digging"></i> Work Goin On (<span id="worksCount">5</span>)
+            </button>
+            <button class="sheet-tab" data-target="tabCanals">
+              <i class="fa-solid fa-water"></i> Canals
+            </button>
+            <button class="sheet-tab" data-target="tabReports">
+              <i class="fa-solid fa-bullhorn"></i> Feed
+            </button>
+          </div>
+
+          <!-- Scrollable Sheet Content -->
+          <div class="sheet-content">
+            
+            <!-- Tab 1: Route Comparison -->
+            <div class="tab-view active" id="tabRoute">
+              <div id="routeCardsContainer" class="route-cards-stack">
+                <!-- Dynamically rendered by app.js based on weather and route data -->
+              </div>
+            </div>
+
+            <!-- Tab 2: Subway Telemetry -->
+            <div class="tab-view" id="tabSubways">
+              <div class="chip-filter-row">
+                <button class="filter-pill active" data-subway-filter="ALL">All (10)</button>
+                <button class="filter-pill pill-danger" data-subway-filter="CLOSED_SUBMERGED">Closed</button>
+                <button class="filter-pill pill-warning" data-subway-filter="WATERLOGGED_WARNING">Warning</button>
+                <button class="filter-pill pill-success" data-subway-filter="OPEN_CLEAR">Clear</button>
+              </div>
+
+              <div class="app-list" id="subwaysAppList"></div>
+            </div>
+
+            <!-- Tab 3: Work Goin On (Civic Road Works) -->
+            <div class="tab-view" id="tabWorks">
+              <div class="work-section-header">
+                <div>
+                  <h4 style="color: var(--text-main); font-size: 0.88rem;">Active Road Work &amp; Excavations</h4>
+                  <p style="font-size: 0.7rem; color: var(--text-muted);">Stormwater drain digging, pump lines, pipeline cuts, tree removal</p>
+                </div>
+                <button class="btn-mini-add" id="btnAddWorkReport">
+                  <i class="fa-solid fa-plus"></i> Report Work
+                </button>
+              </div>
+
+              <!-- Dynamic Route & Destination Work Filters -->
+              <div class="chip-filter-row" style="margin-bottom: 12px;">
+                <button class="filter-pill active" id="pillWorkRoute" onclick="filterWorksCategory('ON_ROUTE')">
+                  🚧 On My Route (<span id="routeWorksCount">0</span>)
+                </button>
+                <button class="filter-pill" id="pillWorkDest" onclick="filterWorksCategory('NEAR_DEST')">
+                  📍 Near Destination (<span id="destWorksCount">0</span>)
+                </button>
+                <button class="filter-pill" id="pillWorkAll" onclick="filterWorksCategory('ALL')">
+                  🌐 All Chennai (<span id="allWorksCount">5</span>)
+                </button>
+              </div>
+
+              <div class="app-list" id="worksAppList"></div>
+            </div>
+
+            <!-- Tab 4: Canals & Waterways -->
+            <div class="tab-view" id="tabCanals">
+              <div class="app-list" id="canalsAppList"></div>
+            </div>
+
+            <!-- Tab 5: Community Feed -->
+            <div class="tab-view" id="tabReports">
+              <div class="app-list" id="reportsAppList"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 6. WEATHER & MONSOON ENGINE MODAL -->
+        <div class="action-sheet-backdrop" id="weatherModal" style="display: none;">
+          <div class="action-sheet weather-modal-sheet">
+            <div class="sheet-header-row">
+              <div class="sheet-title text-cyan">
+                <i class="fa-solid fa-cloud-bolt"></i> Chennai Live Weather &amp; Monsoon Engine
+              </div>
+              <button class="btn-sheet-close" id="btnCloseWeatherModal">&times;</button>
+            </div>
+            
+            <div class="weather-modal-body">
+              <div class="weather-metrics-grid">
+                <div class="weather-metric-card">
+                  <div class="w-metric-label">Current Rain</div>
+                  <div class="w-metric-val text-teal" id="metricCurrentRain">0.0 mm/hr</div>
+                  <div class="w-metric-note">Real-Time Radar</div>
+                </div>
+                <div class="weather-metric-card">
+                  <div class="w-metric-label">Past 24h Rain</div>
+                  <div class="w-metric-val" id="metric24hRain">0.0 mm</div>
+                  <div class="w-metric-note">Cumulative Precipitation</div>
+                </div>
+                <div class="weather-metric-card">
+                  <div class="w-metric-label">Temperature</div>
+                  <div class="w-metric-val" id="metricTemp">31°C</div>
+                  <div class="w-metric-note">Chennai Coastal</div>
+                </div>
+                <div class="weather-metric-card">
+                  <div class="w-metric-label">Subway Status</div>
+                  <div class="w-metric-val text-emerald" id="metricSubwayStatus">100% DRY</div>
+                  <div class="w-metric-note">0" water logging</div>
+                </div>
+              </div>
+
+              <div class="weather-mode-box">
+                <div class="weather-mode-title">Weather &amp; Monsoon Operating Mode:</div>
+                <div class="weather-mode-buttons">
+                  <button class="btn-mode-choice active" id="modeBtnLive" onclick="switchWeatherMode('LIVE')">
+                    <span class="m-icon">📡</span>
+                    <div class="m-txt">
+                      <strong>Live IMD Weather</strong>
+                      <small>Automatic Open-Meteo rainfall sync</small>
+                    </div>
+                  </button>
+                  <button class="btn-mode-choice" id="modeBtnDry" onclick="switchWeatherMode('SIMULATE_DRY')">
+                    <span class="m-icon">☀️</span>
+                    <div class="m-txt">
+                      <strong>Dry Day (No Rain)</strong>
+                      <small>Subways 0" depth, no flood alerts</small>
+                    </div>
+                  </button>
+                  <button class="btn-mode-choice" id="modeBtnRain" onclick="switchWeatherMode('SIMULATE_HEAVY_RAIN')">
+                    <span class="m-icon">⛈️</span>
+                    <div class="m-txt">
+                      <strong>Monsoon Downpour</strong>
+                      <small>112mm rain, low subways submerged</small>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div class="weather-notice-box" id="weatherNoticeBox">
+                <i class="fa-solid fa-circle-check text-emerald"></i>
+                <span id="weatherNoticeText">Weather Verified: No rain in Chennai yesterday or today. Flood hazard alarms are disabled and subways are open.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. DESTINATION SEARCH AUTOCOMPLETE DRAWER / MODAL -->
+        <div class="action-sheet-backdrop" id="destinationModal" style="display: none;">
+          <div class="action-sheet dest-picker-sheet">
+            <div class="sheet-header-row">
+              <div class="sheet-title">
+                <i class="fa-solid fa-location-dot text-teal"></i> Choose Destination in Chennai
+              </div>
+              <button class="btn-sheet-close" id="btnCloseDestModal">&times;</button>
+            </div>
+
+            <div class="dest-category-chips" id="destCategoryChips">
+              <button class="cat-chip active" onclick="filterDestCategory('ALL')">All (90+)</button>
+              <button class="cat-chip" onclick="filterDestCategory('TRANSIT')">🚆 Transit Hubs</button>
+              <button class="cat-chip" onclick="filterDestCategory('METRO')">🚇 Metro</button>
+              <button class="cat-chip" onclick="filterDestCategory('IT_PARK')">💻 IT Corridors</button>
+              <button class="cat-chip" onclick="filterDestCategory('CENTRAL')">🏙️ Central</button>
+              <button class="cat-chip" onclick="filterDestCategory('SOUTH')">🌊 South</button>
+              <button class="cat-chip" onclick="filterDestCategory('WEST')">🛣️ West</button>
+              <button class="cat-chip" onclick="filterDestCategory('HOSPITAL')">🏥 Hospitals</button>
+            </div>
+
+            <div class="dest-search-box">
+              <i class="fa-solid fa-magnifying-glass text-muted"></i>
+              <input type="text" id="destSearchInput" placeholder="Type Chennai area (e.g. Airport, Central, Adyar, Porur)..." autocomplete="off" autofocus>
+            </div>
+
+            <div class="quick-dest-section">
+              <span class="quick-dest-label">Major Chennai Commuter Hubs:</span>
+              <div class="dest-suggestions-list" id="destSuggestionsList">
+                <!-- Populated dynamically by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. REPORT ACTION SHEET: FLAG WATER DEPTH -->
+        <div class="action-sheet-backdrop" id="reportActionSheet" style="display: none;">
+          <div class="action-sheet">
+            <div class="sheet-header-row">
+              <div class="sheet-title">
+                <i class="fa-solid fa-triangle-exclamation text-amber"></i> Flag Road Water Depth
+              </div>
+              <button class="btn-sheet-close" id="btnCloseReportSheet">&times;</button>
+            </div>
+
+            <form id="mobileReportForm" class="sheet-form">
+              <div class="input-field">
+                <label>Area / Neighborhood</label>
+                <input type="text" id="mobReportArea" required placeholder="e.g. Velachery, Madipakkam, Kolathur">
+              </div>
+
+              <div class="input-field">
+                <label>Road / Landmark</label>
+                <input type="text" id="mobReportRoad" required placeholder="e.g. 100ft Road near station">
+              </div>
+
+              <label class="field-heading">Water Depth</label>
+              <div class="depth-grid">
+                <label class="depth-pill">
+                  <input type="radio" name="mobDepth" value="ANKLE_DEEP" checked>
+                  <div class="pill-body">
+                    <span class="p-icon">🟢</span>
+                    <span class="p-name">Ankle</span>
+                    <span class="p-range">0-4"</span>
+                  </div>
+                </label>
+                <label class="depth-pill">
+                  <input type="radio" name="mobDepth" value="CALF_DEEP">
+                  <div class="pill-body">
+                    <span class="p-icon">🟡</span>
+                    <span class="p-name">Calf</span>
+                    <span class="p-range">4-8"</span>
+                  </div>
+                </label>
+                <label class="depth-pill">
+                  <input type="radio" name="mobDepth" value="KNEE_DEEP">
+                  <div class="pill-body">
+                    <span class="p-icon">🟠</span>
+                    <span class="p-name">Knee</span>
+                    <span class="p-range">8-18"</span>
+                  </div>
+                </label>
+                <label class="depth-pill">
+                  <input type="radio" name="mobDepth" value="WAIST_DEEP_SUBMERGED">
+                  <div class="pill-body">
+                    <span class="p-icon">🔴</span>
+                    <span class="p-name">Submerged</span>
+                    <span class="p-range">&gt;18"</span>
+                  </div>
+                </label>
+              </div>
+
+              <label class="field-heading">Safe For:</label>
+              <div class="checkbox-chips">
+                <label><input type="checkbox" id="mobPass2W" value="two_wheeler"> 🏍️ Bike</label>
+                <label><input type="checkbox" id="mobPassCar" value="sedan_hatchback"> 🚗 Car</label>
+                <label><input type="checkbox" id="mobPassSUV" value="suv"> 🚙 SUV</label>
+                <label><input type="checkbox" id="mobPassBus" value="bus_heavy" checked> 🚌 Bus</label>
+              </div>
+
+              <div class="input-field">
+                <label>Notes (Optional)</label>
+                <input type="text" id="mobReportNotes" placeholder="e.g. Water is murky, keep to right shoulder">
+              </div>
+
+              <input type="hidden" id="mobReportLat" value="12.9815">
+              <input type="hidden" id="mobReportLng" value="80.2212">
+
+              <button type="submit" class="btn-submit-action">
+                <i class="fa-solid fa-paper-plane"></i> Broadcast Flood Report
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 9. REPORT ACTION SHEET: REPORT ROAD WORK / EXCAVATION -->
+        <div class="action-sheet-backdrop" id="workActionSheet" style="display: none;">
+          <div class="action-sheet">
+            <div class="sheet-header-row">
+              <div class="sheet-title text-amber">
+                <i class="fa-solid fa-person-digging"></i> Report Road Work / Construction
+              </div>
+              <button class="btn-sheet-close" id="btnCloseWorkSheet">&times;</button>
+            </div>
+
+            <form id="mobileWorkForm" class="sheet-form">
+              <div class="input-field">
+                <label>Area / Neighborhood</label>
+                <input type="text" id="workArea" required placeholder="e.g. Vadapalani, Velachery, T. Nagar">
+              </div>
+
+              <div class="input-field">
+                <label>Road / Exact Location</label>
+                <input type="text" id="workRoad" required placeholder="e.g. Arcot Road near Metro station, Burkit Road">
+              </div>
+
+              <div class="input-field">
+                <label>What kinda work is goin on? *</label>
+                <select id="workTypeSelect" class="form-select-app">
+                  <option value="SWD_DRAIN_TRENCH">🚧 Stormwater Drain (SWD) Excavation / Deep Trench</option>
+                  <option value="MOTOR_PUMP_DEPLOYED">🚒 Corporation Motor Pump Hoses Across Road</option>
+                  <option value="METROWATER_ROAD_CUT">🚰 MetroWater Pipeline Repair / Road Cut</option>
+                  <option value="TANGEDCO_ELECTRICAL">⚡ TANGEDCO Underground Cable / Transformer Work</option>
+                  <option value="DEBRIS_TREE_FALL">🌲 Fallen Tree Branch / Debris Clearing</option>
+                  <option value="POLICE_BARRICADE">🛑 Police Flood Diversion Barricades</option>
+                </select>
+              </div>
+
+              <div class="input-field">
+                <label>Traffic Impact</label>
+                <select id="workImpactSelect" class="form-select-app">
+                  <option value="LANE_PARTIALLY_BLOCKED">⚠️ Lane Partially Blocked (Slow Crawl)</option>
+                  <option value="ROAD_FULLY_CLOSED">⛔ Entire Road Closed / Divert</option>
+                  <option value="SLOW_MOVING">ℹ️ Slow Moving / Bumpy Trench Surface</option>
+                </select>
+              </div>
+
+              <div class="input-field">
+                <label>Details / Safety Warning for Commuters</label>
+                <input type="text" id="workDesc" placeholder="e.g. Deep 6ft trench on left lane. Two-wheelers keep right.">
+              </div>
+
+              <input type="hidden" id="workLat" value="12.9815">
+              <input type="hidden" id="workLng" value="80.2212">
+
+              <button type="submit" class="btn-submit-action" style="background: linear-gradient(135deg, #D97706, #B45309);">
+                <i class="fa-solid fa-person-digging"></i> Broadcast Road Work Alert
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 10. EMERGENCY SOS SHEET -->
+        <div class="action-sheet-backdrop" id="emergencyActionSheet" style="display: none;">
+          <div class="action-sheet">
+            <div class="sheet-header-row">
+              <div class="sheet-title text-danger">
+                <i class="fa-solid fa-phone-volume"></i> Greater Chennai Emergency Helpline Hub
+              </div>
+              <button class="btn-sheet-close" id="btnCloseEmergencySheet">&times;</button>
+            </div>
+
+            <div class="emergency-list" id="emergencyContactsSheet"></div>
+          </div>
+        </div>
+
+        <div class="toast-hub" id="toastHub"></div>
+
+      </div> <!-- end app-viewport -->
+    </div> <!-- end phone-frame -->
+  </div> <!-- end simulator-wrapper -->
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <script src="/app.js"></script>
+</body>
+</html>
