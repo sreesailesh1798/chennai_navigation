@@ -1,0 +1,16 @@
+{
+  "short_name": "ChennaiNav",
+  "name": "Chennai Flood & Subway Navigation",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3750/3750508.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#070B19",
+  "theme_color": "#0284C7",
+  "display": "standalone",
+  "orientation": "portrait"
+}
